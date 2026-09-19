@@ -1,241 +1,216 @@
+/* =========================================
+   ÁUDIO — TRÊS EFEITOS
+========================================= */
 
-document.addEventListener("DOMContentLoaded", () => {
+const sounds = {
+    click: new Audio("assets/audio/click.mp3"),
+    transition: new Audio("assets/audio/transition.mp3"),
+    impact: new Audio("assets/audio/impact.mp3")
+};
 
-    /* ÁUDIO */
+sounds.click.volume = 0.35;
+sounds.transition.volume = 0.40;
+sounds.impact.volume = 0.60;
 
-    const sounds = {
-        click: new Audio("assets/audio/click.mp3"),
-        transition: new Audio("assets/audio/transition.mp3"),
-        impact: new Audio("assets/audio/impact.mp3")
-    };
+Object.values(sounds).forEach(sound => {
+    sound.preload = "auto";
+    sound.load();
+});
 
-    sounds.click.volume = 0.35;
-    sounds.transition.volume = 0.55;
-    sounds.impact.volume = 0.65;
-
-    
 let audioEnabled = false;
 
-// Libera os efeitos no primeiro toque ou clique.
-// Não cria nenhum botão na tela.
+// Libera o áudio no primeiro toque, clique ou tecla.
+// Nenhum botão aparece na tela.
 function unlockAudio() {
-    audioEnabled = true;
+    if (audioEnabled) return;
 
-    document.removeEventListener("pointerdown", unlockAudio);
-    document.removeEventListener("keydown", unlockAudio);
-}
-
-document.addEventListener("pointerdown", unlockAudio, {
-    once: true,
-    capture: true
-});
-
-document.addEventListener("keydown", unlockAudio, {
-    once: true,
-    capture: true
-});
-// Ativa o áudio no primeiro toque ou clique
-function unlockAudio() {
     audioEnabled = true;
 
     document.removeEventListener("pointerdown", unlockAudio, true);
+    document.removeEventListener("touchstart", unlockAudio, true);
     document.removeEventListener("keydown", unlockAudio, true);
+
+    // O primeiro toque também produz um efeito.
+    playSound("click");
 }
 
 document.addEventListener("pointerdown", unlockAudio, true);
+document.addEventListener("touchstart", unlockAudio, true);
 document.addEventListener("keydown", unlockAudio, true);
 
+function playSound(name) {
+    if (!audioEnabled) return;
+
+    const sound = sounds[name];
+    if (!sound) return;
+
+    sound.pause();
+    sound.currentTime = 0;
+
+    sound.play().catch(error => {
+        console.warn("Falha no áudio " + name + ":", error);
+    });
+}
 
 
+/* =========================================
+   CLIQUES NOS BOTÕES
+========================================= */
 
+document.querySelectorAll(
+    ".button, .nav-cta, .nav-links a"
+).forEach(button => {
 
-    function playSound(name) {
-        if (!audioEnabled) return;
-
-        const original = sounds[name];
-        if (!original) return;
-
-        // Permite que um efeito novo toque mesmo
-        // se o anterior ainda estiver terminando.
-        const sound = original.cloneNode();
-        sound.volume = original.volume;
-
-        sound.play().catch(error => {
-            console.warn("Não foi possível tocar o áudio:", error);
-        });
-    }
-
-   
-
-    /* SOM DOS BOTÕES */
-
-    document.querySelectorAll(
-        ".button, .nav-cta, .nav-links a"
-    ).forEach(button => {
-
-        button.addEventListener("click", () => {
-            playSound("click");
-        });
-
+    button.addEventListener("click", () => {
+        playSound("click");
     });
 
+});
 
-    /* ANIMAÇÕES E SONS NAS SEÇÕES */
 
-    const revealElements =
-        document.querySelectorAll(".reveal");
+/* =========================================
+   ANIMAÇÕES REVEAL
+========================================= */
 
-    const revealObserver = new IntersectionObserver(
-        entries => {
+const revealElements = document.querySelectorAll(".reveal");
 
-            entries.forEach(entry => {
+const revealObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
 
-                if (!entry.isIntersecting) return;
-
-                entry.target.classList.add("visible");
-                revealObserver.unobserve(entry.target);
-
-            });
-
-        },
-        { threshold: 0.12 }
-    );
-
-    revealElements.forEach(element => {
-        revealObserver.observe(element);
+        entry.target.classList.add("visible");
+        revealObserver.unobserve(entry.target);
     });
+}, { threshold: 0.12 });
+
+revealElements.forEach(element => {
+    revealObserver.observe(element);
+});
 
 
-    /* TRANSIÇÕES AUTOMÁTICAS */
+/* =========================================
+   SOM NAS TRANSIÇÕES DE SEÇÃO
+========================================= */
 
-    const sections = document.querySelectorAll(
-        ".intro, .regional, .profile, .search, .reports, .strategy, .proposal"
-    );
+// Usa as seções reais do HTML, mesmo que
+// não tenham classes como .intro ou .regional.
+const sections = document.querySelectorAll("main section, section");
 
-    const sectionObserver = new IntersectionObserver(
-        entries => {
+let lastTransition = 0;
 
-            entries.forEach(entry => {
+const sectionObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+        if (!entry.isIntersecting || !audioEnabled) return;
 
-                if (!entry.isIntersecting) return;
+        const now = Date.now();
 
-                playSound("transition");
+        // Evita vários efeitos simultâneos.
+        if (now - lastTransition < 1800) return;
 
-            });
+        lastTransition = now;
+        playSound("transition");
+    });
+}, { threshold: 0.35 });
 
-        },
-        {
-            threshold: 0.35
+sections.forEach(section => {
+    sectionObserver.observe(section);
+});
+
+
+/* =========================================
+   IMPACTO NOS NÚMEROS
+========================================= */
+
+const impactElements = document.querySelectorAll(
+    ".mega-number, .returning-number, .regional-heading"
+);
+
+let lastImpact = 0;
+
+const impactObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+        if (!entry.isIntersecting || !audioEnabled) return;
+
+        // O contador tem seu próprio impacto.
+        if (entry.target.contains(document.querySelector(".counter"))) {
+            return;
         }
-    );
 
-    sections.forEach(section => {
-        sectionObserver.observe(section);
+        const now = Date.now();
+
+        if (now - lastImpact < 1200) return;
+
+        lastImpact = now;
+
+        playSound("impact");
+
+        entry.target.classList.remove("impact");
+        void entry.target.offsetWidth;
+        entry.target.classList.add("impact");
     });
+}, { threshold: 0.5 });
+
+impactElements.forEach(element => {
+    impactObserver.observe(element);
+});
 
 
-    /* IMPACTO NOS NÚMEROS */
+/* =========================================
+   CONTADOR 766 MIL
+========================================= */
 
-    const impactElements = document.querySelectorAll(
-        ".mega-number, .returning-number, .regional-heading"
-    );
+const counter = document.querySelector(".counter");
 
-    const impactObserver = new IntersectionObserver(
-        entries => {
+if (counter) {
 
-            entries.forEach(entry => {
+    let started = false;
 
-                if (!entry.isIntersecting) return;
+    const counterObserver = new IntersectionObserver(entries => {
 
-                // O contador 766 tem sua própria animação.
-                if (entry.target.classList.contains("mega-number")) {
-                    return;
-                }
+        entries.forEach(entry => {
 
-                playSound("impact");
+            if (!entry.isIntersecting || started) return;
 
-                entry.target.classList.remove("impact");
-                void entry.target.offsetWidth;
-                entry.target.classList.add("impact");
+            started = true;
 
-            });
+            const target = Number(counter.dataset.target);
+            const duration = 1500;
+            const startTime = performance.now();
 
-        },
-        {
-            threshold: 0.5
-        }
-    );
+            function animate(currentTime) {
 
-    impactElements.forEach(element => {
-        impactObserver.observe(element);
-    });
+                const progress = Math.min(
+                    (currentTime - startTime) / duration,
+                    1
+                );
 
+                const eased = 1 - Math.pow(1 - progress, 4);
 
-    /* CONTADOR 766 MIL */
+                counter.textContent = Math.floor(
+                    target * eased
+                ).toLocaleString("pt-BR");
 
-    const counter = document.querySelector(".counter");
-
-    if (counter) {
-
-        let counting = false;
-        let completed = false;
-
-        const counterObserver = new IntersectionObserver(
-            entries => {
-
-                entries.forEach(entry => {
-
-                    if (!entry.isIntersecting || counting || completed) {
-                        return;
-                    }
-
-                    counting = true;
-
-                    const target = Number(counter.dataset.target);
-                    const duration = 1500;
-                    const start = performance.now();
-
-                    function animate(now) {
-
-                        const progress = Math.min(
-                            (now - start) / duration,
-                            1
-                        );
-
-                        const eased = 1 - Math.pow(1 - progress, 4);
-
-                        counter.textContent = Math.floor(
-                            target * eased
-                        ).toLocaleString("pt-BR");
-
-                        if (progress < 1) {
-
-                            requestAnimationFrame(animate);
-
-                        } else {
-
-                            counter.textContent =
-                                target.toLocaleString("pt-BR");
-
-                            playSound("impact");
-
-                            counter.classList.add("impact");
-
-                            completed = true;
-                            counting = false;
-
-                        }
-                    }
+                if (progress < 1) {
 
                     requestAnimationFrame(animate);
 
-                });
+                } else {
 
-            },
-            { threshold: 0.4 }
-        );
+                    counter.textContent = target.toLocaleString("pt-BR");
 
-        counterObserver.observe(counter);
-    }
+                    playSound("impact");
 
-});
+                    counter.classList.remove("impact");
+                    void counter.offsetWidth;
+                    counter.classList.add("impact");
+                }
+            }
+
+            requestAnimationFrame(animate);
+            counterObserver.unobserve(counter);
+        });
+
+    }, { threshold: 0.4 });
+
+    counterObserver.observe(counter);
+}
